@@ -363,4 +363,97 @@ export class ObjectManager {
       ease: 'elastic.out(1, 0.5)'
     });
   }
+
+  // Explode all balloons into particles
+  explodeAllBalloons(): void {
+    const objectsToExplode = [...this.objects]; // Copy array to avoid modification during iteration
+
+    objectsToExplode.forEach((obj, index) => {
+      // Stagger the explosions (very slow)
+      gsap.delayedCall(index * 1.0, () => {
+        this.explodeBalloon(obj);
+      });
+    });
+
+    // Clear the objects array after all explosions (adjusted for very long duration)
+    gsap.delayedCall(objectsToExplode.length * 1.0 + 6, () => {
+      this.objects = [];
+    });
+  }
+
+  private explodeBalloon(obj: BalloonObject): void {
+    const particleCount = 20;
+    const particles: THREE.Mesh[] = [];
+
+    // Create explosion particles
+    for (let i = 0; i < particleCount; i++) {
+      const geometry = new THREE.SphereGeometry(0.05, 8, 8);
+      const material = new THREE.MeshStandardMaterial({
+        color: obj.color,
+        emissive: obj.color,
+        emissiveIntensity: 0.3
+      });
+
+      const particle = new THREE.Mesh(geometry, material);
+      particle.position.copy(obj.mesh.position);
+
+      // Random velocity
+      const velocity = new THREE.Vector3(
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 10
+      );
+
+      particle.userData = { velocity, life: 3.0 };
+      particles.push(particle);
+      this.scene.add(particle);
+    }
+
+    // Remove original balloon
+    this.scene.remove(obj.mesh);
+    obj.mesh.geometry.dispose();
+    (obj.mesh.material as THREE.Material).dispose();
+
+    // Animate particles
+    const startTime = performance.now();
+    const animateParticles = () => {
+      const currentTime = performance.now();
+      const deltaTime = (currentTime - startTime) / 1000;
+
+      particles.forEach((particle, index) => {
+        if (particle.userData.life <= 0) return;
+
+        // Update position
+        particle.position.add(
+          particle.userData.velocity.clone().multiplyScalar(deltaTime)
+        );
+
+        // Apply gravity
+        particle.userData.velocity.y -= 9.8 * deltaTime;
+
+        // Fade out
+        const material = particle.material as THREE.MeshStandardMaterial;
+        const alpha = Math.max(0, particle.userData.life / 2.0);
+        material.opacity = alpha;
+        material.transparent = true;
+
+        // Update life
+        particle.userData.life -= deltaTime;
+
+        // Remove dead particles
+        if (particle.userData.life <= 0) {
+          this.scene.remove(particle);
+          particle.geometry.dispose();
+          (particle.material as THREE.Material).dispose();
+        }
+      });
+
+      // Continue animation if any particles are alive
+      if (particles.some(p => p.userData.life > 0)) {
+        requestAnimationFrame(animateParticles);
+      }
+    };
+
+    animateParticles();
+  }
 }

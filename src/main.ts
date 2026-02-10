@@ -124,22 +124,8 @@ class AirCanvas {
     // Keyboard controls
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
 
-    // Color palette clicks and touches
-    this.colorSwatches.forEach(swatch => {
-      swatch.addEventListener('click', () => {
-        this.colorSwatches.forEach(s => s.classList.remove('active'));
-        swatch.classList.add('active');
-        this.currentColor = swatch.dataset.color || '#FFB3BA';
-      });
-
-      // Touch support for color selection
-      swatch.addEventListener('touchstart', (e) => {
-        e.preventDefault(); // Prevent scrolling
-        this.colorSwatches.forEach(s => s.classList.remove('active'));
-        swatch.classList.add('active');
-        this.currentColor = swatch.dataset.color || '#FFB3BA';
-      });
-    });
+    // Color palette selection (finger pointing only)
+    // Removed click/touch listeners to use gesture-based selection instead
 
     // Mouse controls for 3D scene
     const sceneCanvas = document.getElementById('scene-canvas')!;
@@ -645,9 +631,9 @@ class AirCanvas {
   private handleGesture(state: GestureState, landmarks: HandLandmarks): void {
     const indexTip = this.gestureDetector.getIndexTip(landmarks);
 
-    // Check for color selection first
+    // Check for color selection with pointing finger (always, regardless of gesture)
     if (this.checkColorSelection(indexTip)) {
-      return; // Don't handle other gestures if selecting color
+      return; // Select color instead of doing gesture
     }
 
     switch (state.current) {
@@ -663,9 +649,7 @@ class AirCanvas {
         this.handlePalm();
         break;
 
-      case 'fist':
-        // Handle fist gesture
-        break;
+
 
       case 'two':
         if (!this.isZoomingIn) {
@@ -951,6 +935,8 @@ class AirCanvas {
   private hideStatus(): void {
     this.statusMessage.classList.remove('visible');
   }
+
+
 }
 
 // Start the application when DOM is ready

@@ -66,7 +66,7 @@ export class GestureDetector {
     };
   }
 
-  private getPalmCenter(landmarks: HandLandmarks): Point2D {
+  public getPalmCenter(landmarks: HandLandmarks): Point2D {
     const wrist = landmarks.landmarks[LANDMARKS.WRIST];
     const indexMcp = landmarks.landmarks[LANDMARKS.INDEX_MCP];
     const pinkyMcp = landmarks.landmarks[LANDMARKS.PINKY_MCP];

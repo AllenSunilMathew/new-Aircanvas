@@ -58,10 +58,11 @@
     /* Camera preview - draggable */
     #camera-preview {
       position: absolute;
-      top: 24px;
-      left: 24px; /* Moved from center to top-left initially */
+      top: 50%;
+      right: 24px; /* Move to right side */
+      transform: translateY(-50%); /* Center vertically */
       /* Smaller size */
-      width: 240px; 
+      width: 240px;
       height: 180px;
       border-radius: 12px;
       overflow: hidden;
@@ -991,15 +992,15 @@
       <div class="gesture-hints">
         <div class="gesture-hint">
           <div class="gesture-icon">☝️</div>
-          <span>Point to draw</span>
+          <span>Point to draw or select color</span>
         </div>
         <div class="gesture-hint">
           <div class="gesture-icon">🤏</div>
           <span>Pinch to grab</span>
         </div>
         <div class="gesture-hint">
-          <div class="gesture-icon">🖐️</div>
-          <span>Palm to inflate</span>
+          <div class="gesture-icon">✊</div>
+          <span>Fist to select color</span>
         </div>
 
       </div>
