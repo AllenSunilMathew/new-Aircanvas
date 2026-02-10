@@ -59,6 +59,13 @@ class AirCanvas {
   private previewStartLeft = 0;
   private previewStartTop = 0;
 
+  // Zoom gesture state
+  private zoomInStatusShown = false;
+  private zoomOutStatusShown = false;
+  private isZoomingIn = false;
+  private isZoomingOut = false;
+  private zoomSpeed = 0.02; // Gradual zoom speed per frame
+
   constructor() {
     // Get DOM elements
     const videoElement = document.getElementById('webcam') as HTMLVideoElement;
@@ -622,6 +629,26 @@ class AirCanvas {
         // Handle fist gesture
         break;
 
+      case 'two':
+        if (!this.isZoomingIn) {
+          this.isZoomingIn = true;
+          if (!this.zoomInStatusShown) {
+            this.showStatus('Zoom In (2 Fingers)', 1000);
+            this.zoomInStatusShown = true;
+          }
+        }
+        break;
+
+      case 'three':
+        if (!this.isZoomingOut) {
+          this.isZoomingOut = true;
+          if (!this.zoomOutStatusShown) {
+            this.showStatus('Zoom Out (3 Fingers)', 1000);
+            this.zoomOutStatusShown = true;
+          }
+        }
+        break;
+
       case 'swipe':
         this.handleSwipe(indexTip);
         break;
@@ -643,6 +670,16 @@ class AirCanvas {
       // Clear live position when leaving draw mode
       if (this.lastGestureState.current === 'draw') {
         this.drawingCanvas.clearLivePosition();
+      }
+
+      // Reset zoom states when gesture changes
+      if (this.lastGestureState.current === 'two') {
+        this.isZoomingIn = false;
+        this.zoomInStatusShown = false;
+      }
+      if (this.lastGestureState.current === 'three') {
+        this.isZoomingOut = false;
+        this.zoomOutStatusShown = false;
       }
     }
   }
@@ -800,7 +837,12 @@ class AirCanvas {
     const deltaTime = this.lastFrameTime > 0 ? (now - this.lastFrameTime) / 1000 : 0.016;
     this.lastFrameTime = now;
 
-
+    // Apply gradual zoom if gestures are active
+    if (this.isZoomingIn) {
+      this.scene3D.zoomCamera(-this.zoomSpeed);
+    } else if (this.isZoomingOut) {
+      this.scene3D.zoomCamera(this.zoomSpeed);
+    }
 
     // Update 3D objects
     this.objectManager.update(deltaTime, now / 1000);

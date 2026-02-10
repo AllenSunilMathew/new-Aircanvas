@@ -31,7 +31,9 @@ export type GestureType =
   | 'palm'      // Open palm
   | 'fist'      // Closed fist
   | 'poke'      // Index pointing at object
-  | 'swipe';    // Fast horizontal movement
+  | 'swipe'     // Fast horizontal movement
+  | 'two'       // Two fingers extended (zoom in)
+  | 'three';    // Three fingers extended (zoom out)
 
 export interface GestureState {
   current: GestureType;

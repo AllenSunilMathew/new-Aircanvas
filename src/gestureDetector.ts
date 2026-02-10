@@ -81,23 +81,30 @@ export class GestureDetector {
 
     // 1. PINCH CHECK (High Priority) - Threshold increased to 60 for easier grabbing
     const pinchDistance = this.distance(lm[LANDMARKS.THUMB_TIP], lm[LANDMARKS.INDEX_TIP]);
-    
+
     if (pinchDistance < 60) { // <--- INCREASED THRESHOLD (Easier to pinch)
       return 'pinch';
     }
 
-    // 2. DRAW CHECK (Strict Index Finger)
-    // Sirf Index finger khuli honi chahiye, baqi band
+    // 2. FINGER COUNT CHECK (for zoom gestures)
+    const extendedCount = this.countExtendedFingers(landmarks);
+    if (extendedCount === 2) {
+      return 'two';  // Zoom in
+    } else if (extendedCount === 3) {
+      return 'three';  // Zoom out
+    }
+
+    // 3. DRAW CHECK (Strict Index Finger)
     if (this.isPointingIndex(landmarks)) {
       return 'draw';
     }
 
-    // 3. PALM / ROTATE CHECK
+    // 4. PALM / ROTATE CHECK
     if (this.isOpenPalm(landmarks)) {
       return 'palm';
     }
 
-    // 4. FIST CHECK
+    // 5. FIST CHECK
     if (this.isFist(landmarks)) {
       return 'fist';
     }
@@ -152,6 +159,18 @@ export class GestureDetector {
 
   getIndexTip(landmarks: HandLandmarks): Point2D {
     return landmarks.landmarks[LANDMARKS.INDEX_TIP];
+  }
+
+  private countExtendedFingers(landmarks: HandLandmarks): number {
+    let count = 0;
+
+    // Check each finger (excluding thumb for simplicity)
+    if (this.isFingerExtended(landmarks, LANDMARKS.INDEX_TIP, LANDMARKS.INDEX_PIP)) count++;
+    if (this.isFingerExtended(landmarks, LANDMARKS.MIDDLE_TIP, LANDMARKS.MIDDLE_PIP)) count++;
+    if (this.isFingerExtended(landmarks, LANDMARKS.RING_TIP, LANDMARKS.RING_PIP)) count++;
+    if (this.isFingerExtended(landmarks, LANDMARKS.PINKY_TIP, LANDMARKS.PINKY_PIP)) count++;
+
+    return count;
   }
 
   getPinchCenter(landmarks: HandLandmarks): Point2D {
