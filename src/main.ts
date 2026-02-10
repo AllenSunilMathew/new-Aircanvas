@@ -112,6 +112,9 @@ class AirCanvas {
     // Window resize
     window.addEventListener('resize', () => this.resize());
 
+    // Keyboard controls
+    window.addEventListener('keydown', (e) => this.onKeyDown(e));
+
     // Color palette clicks
     this.colorSwatches.forEach(swatch => {
       swatch.addEventListener('click', () => {
@@ -436,7 +439,7 @@ class AirCanvas {
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault();
-    this.scene3D.zoomCamera(e.deltaY * 0.001);
+    // Wheel zoom disabled
   }
 
   private onTouchStart(e: TouchEvent): void {
@@ -615,6 +618,10 @@ class AirCanvas {
         this.handlePalm();
         break;
 
+      case 'fist':
+        // Handle fist gesture
+        break;
+
       case 'swipe':
         this.handleSwipe(indexTip);
         break;
@@ -626,6 +633,7 @@ class AirCanvas {
           this.grabbedObject = null;
           this.lastPinchPosition = null;
         }
+
         break;
     }
 
@@ -726,6 +734,8 @@ class AirCanvas {
     }
   }
 
+
+
   private async closeAndInflate(): Promise<void> {
     const stroke = this.drawingCanvas.closeStroke();
     this.drawingCanvas.clearLivePosition();
@@ -790,6 +800,8 @@ class AirCanvas {
     const deltaTime = this.lastFrameTime > 0 ? (now - this.lastFrameTime) / 1000 : 0.016;
     this.lastFrameTime = now;
 
+
+
     // Update 3D objects
     this.objectManager.update(deltaTime, now / 1000);
 
@@ -813,6 +825,38 @@ class AirCanvas {
       this.currentColor,
       deltaTime
     );
+  }
+
+  private handleZoomIn(): void {
+    // Zoom in by decreasing camera distance
+    this.scene3D.zoomCamera(-0.5);
+  }
+
+  private handleZoomOut(): void {
+    // Zoom out by increasing camera distance
+    this.scene3D.zoomCamera(0.5);
+  }
+
+  private onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'q' || e.key === 'Q') {
+      this.showStatus('Stopping application...', 2000);
+      // Stop hand tracking
+      this.handTracker.stop();
+      // Clear all objects
+      this.clearAll();
+      // Show exit message
+      setTimeout(() => {
+        this.showStatus('Application stopped. Press F5 to restart.', 5000);
+      }, 2000);
+    } else if (e.key === '1') {
+      // Zoom in
+      this.handleZoomIn();
+      this.showStatus('Zoom In', 1000);
+    } else if (e.key === '2') {
+      // Zoom out
+      this.handleZoomOut();
+      this.showStatus('Zoom Out', 1000);
+    }
   }
 
   private showStatus(message: string, duration?: number): void {

@@ -148,6 +148,8 @@ export class GestureDetector {
     );
   }
 
+
+
   getIndexTip(landmarks: HandLandmarks): Point2D {
     return landmarks.landmarks[LANDMARKS.INDEX_TIP];
   }

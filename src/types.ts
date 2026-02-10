@@ -1,3 +1,4 @@
+// types.ts (updated)
 import * as THREE from 'three';
 
 export interface Point2D {
@@ -38,6 +39,7 @@ export interface GestureState {
   duration: number;      // How long current gesture has been held
   velocity: Point2D;     // Hand movement velocity
   confidence: number;
+  pinchDistance?: number; // Distance between thumb and index for pinch gestures
 }
 
 export interface BalloonObject {
