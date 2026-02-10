@@ -27,6 +27,7 @@ class AirCanvas {
   private loadingOverlay: HTMLElement;
   private statusMessage: HTMLElement;
   private colorSwatches: NodeListOf<HTMLElement>;
+  private colorPalette: HTMLElement;
 
   // Modal elements
   private inviteModal: HTMLElement;
@@ -81,6 +82,7 @@ class AirCanvas {
     this.loadingOverlay = document.getElementById('loading-overlay')!;
     this.statusMessage = document.getElementById('status-message')!;
     this.colorSwatches = document.querySelectorAll('.color-swatch');
+    this.colorPalette = document.getElementById('color-palette')!;
 
     // Modal elements
     this.inviteModal = document.getElementById('invite-modal')!;
@@ -122,9 +124,17 @@ class AirCanvas {
     // Keyboard controls
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
 
-    // Color palette clicks
+    // Color palette clicks and touches
     this.colorSwatches.forEach(swatch => {
       swatch.addEventListener('click', () => {
+        this.colorSwatches.forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        this.currentColor = swatch.dataset.color || '#FFB3BA';
+      });
+
+      // Touch support for color selection
+      swatch.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // Prevent scrolling
         this.colorSwatches.forEach(s => s.classList.remove('active'));
         swatch.classList.add('active');
         this.currentColor = swatch.dataset.color || '#FFB3BA';
@@ -609,8 +619,36 @@ class AirCanvas {
     }
   }
 
+  private checkColorSelection(position: { x: number; y: number }): boolean {
+    const paletteRect = this.colorPalette.getBoundingClientRect();
+    if (position.x < paletteRect.left || position.x > paletteRect.right ||
+        position.y < paletteRect.top || position.y > paletteRect.bottom) {
+      return false; // Not over palette
+    }
+
+    // Check each swatch
+    for (let i = 0; i < this.colorSwatches.length; i++) {
+      const swatch = this.colorSwatches[i];
+      const swatchRect = swatch.getBoundingClientRect();
+      if (position.x >= swatchRect.left && position.x <= swatchRect.right &&
+          position.y >= swatchRect.top && position.y <= swatchRect.bottom) {
+        // Select this color
+        this.colorSwatches.forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        this.currentColor = swatch.dataset.color || '#FFB3BA';
+        return true;
+      }
+    }
+    return false;
+  }
+
   private handleGesture(state: GestureState, landmarks: HandLandmarks): void {
     const indexTip = this.gestureDetector.getIndexTip(landmarks);
+
+    // Check for color selection first
+    if (this.checkColorSelection(indexTip)) {
+      return; // Don't handle other gestures if selecting color
+    }
 
     switch (state.current) {
       case 'draw':
