@@ -35,6 +35,8 @@ export type GestureType =
   | 'two'       // Two fingers extended (zoom in)
   | 'three';    // Three fingers extended (zoom out)
 
+export type ShapeType = 'freehand';
+
 export interface GestureState {
   current: GestureType;
   previous: GestureType;

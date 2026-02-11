@@ -104,7 +104,7 @@ export class GestureDetector {
       return 'palm';
     }
 
-    // 5. FIST CHECK
+    // 6. FIST CHECK
     if (this.isFist(landmarks)) {
       return 'fist';
     }
@@ -177,5 +177,19 @@ export class GestureDetector {
     const thumb = landmarks.landmarks[LANDMARKS.THUMB_TIP];
     const index = landmarks.landmarks[LANDMARKS.INDEX_TIP];
     return { x: (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 };
+  }
+
+  private isWaveGesture(landmarks: HandLandmarks, velocity: Point2D): boolean {
+    // Check if all fingers are extended (open palm)
+    if (!this.isOpenPalm(landmarks)) {
+      return false;
+    }
+
+    // Check for significant horizontal movement (waving left/right)
+    const horizontalSpeed = Math.abs(velocity.x);
+    const verticalSpeed = Math.abs(velocity.y);
+
+    // Wave should be primarily horizontal with some minimum speed
+    return horizontalSpeed > 200 && horizontalSpeed > verticalSpeed * 2;
   }
 }

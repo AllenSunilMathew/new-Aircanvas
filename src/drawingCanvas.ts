@@ -267,7 +267,7 @@ export class DrawingCanvas {
     }
   }
 
-  private renderStroke(stroke: Stroke, alpha: number): void {
+  public renderStroke(stroke: Stroke, alpha: number): void {
     if (stroke.points.length === 0) return;
 
     this.ctx.save();

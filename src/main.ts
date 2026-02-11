@@ -5,8 +5,8 @@ import { HandVisualizer } from './handVisualizer';
 import { Scene3D } from './scene3D';
 import { ObjectManager } from './objectManager';
 import { Multiplayer, MultiplayerEvent } from './multiplayer';
-import { HandLandmarks, GestureState, BalloonObject, Stroke } from './types';
-import { GESTURE, TIMING } from './constants';
+import { HandLandmarks, GestureState, BalloonObject, Stroke, Point2D } from './types';
+import { GESTURE, TIMING, STROKE } from './constants';
 
 class AirCanvas {
   // Core components
@@ -123,9 +123,6 @@ class AirCanvas {
 
     // Keyboard controls
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
-
-    // Color palette selection (finger pointing only)
-    // Removed click/touch listeners to use gesture-based selection instead
 
     // Mouse controls for 3D scene
     const sceneCanvas = document.getElementById('scene-canvas')!;
@@ -628,16 +625,17 @@ class AirCanvas {
     return false;
   }
 
+
+
   private handleGesture(state: GestureState, landmarks: HandLandmarks): void {
     const indexTip = this.gestureDetector.getIndexTip(landmarks);
 
-    // Check for color selection with pointing finger (always, regardless of gesture)
-    if (this.checkColorSelection(indexTip)) {
-      return; // Select color instead of doing gesture
-    }
-
     switch (state.current) {
       case 'draw':
+        // Check for color selection with pointing finger
+        if (this.checkColorSelection(indexTip)) {
+          return; // Select color instead of drawing
+        }
         this.handleDraw(indexTip);
         break;
 
@@ -649,7 +647,8 @@ class AirCanvas {
         this.handlePalm();
         break;
 
-
+      case 'fist':
+        break;
 
       case 'two':
         if (!this.isZoomingIn) {
@@ -682,7 +681,6 @@ class AirCanvas {
           this.grabbedObject = null;
           this.lastPinchPosition = null;
         }
-
         break;
     }
 
@@ -707,15 +705,15 @@ class AirCanvas {
   }
 
   private handleDraw(position: { x: number; y: number }): void {
-    // Always update live position for real-time line feedback
-    this.drawingCanvas.updateLivePosition(position);
-
     // Check if poking an object
     const hitObject = this.objectManager.getObjectAtPosition(position.x, position.y);
     if (hitObject) {
       this.objectManager.pokeObject(hitObject);
       return;
     }
+
+    // Freehand drawing
+    this.drawingCanvas.updateLivePosition(position);
 
     if (!this.isDrawing) {
       // Start new stroke
@@ -784,6 +782,8 @@ class AirCanvas {
       this.palmHoldStart = 0;
     }
   }
+
+
 
   private handleSwipe(position: { x: number; y: number }): void {
     // Check if swiping on an object
@@ -935,6 +935,10 @@ class AirCanvas {
   private hideStatus(): void {
     this.statusMessage.classList.remove('visible');
   }
+
+
+
+
 
 
 }
