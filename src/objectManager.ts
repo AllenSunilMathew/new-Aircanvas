@@ -310,6 +310,15 @@ export class ObjectManager {
     this.objects = [];
   }
 
+  clearAllImmediate(): void {
+    for (const obj of this.objects) {
+      this.scene.remove(obj.mesh);
+      obj.mesh.geometry.dispose();
+      (obj.mesh.material as THREE.Material).dispose();
+    }
+    this.objects = [];
+  }
+
   getObjectAtPosition(screenX: number, screenY: number): BalloonObject | null {
     const meshes = this.objects.map(o => o.mesh);
     const intersects = this.scene.raycastObjects(screenX, screenY, meshes);

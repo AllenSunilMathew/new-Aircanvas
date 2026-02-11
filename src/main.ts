@@ -165,6 +165,16 @@ class AirCanvas {
       this.openInviteModal();
     });
 
+    // Erase button
+    const eraseBtn = document.getElementById('erase-btn');
+    eraseBtn?.addEventListener('click', () => {
+      this.clearAllImmediate();
+      // Broadcast to peers
+      if (this.multiplayer.isConnected()) {
+        this.multiplayer.broadcast({ type: 'clear_all' });
+      }
+    });
+
     // Modal close button
     const modalClose = document.getElementById('modal-close');
     modalClose?.addEventListener('click', () => {
@@ -658,13 +668,40 @@ class AirCanvas {
     return false;
   }
 
+  private checkEraseSelection(position: { x: number; y: number }): boolean {
+    const eraseBtn = document.getElementById('erase-btn');
+    if (!eraseBtn) return false;
+
+    const btnRect = eraseBtn.getBoundingClientRect();
+    if (position.x >= btnRect.left && position.x <= btnRect.right &&
+        position.y >= btnRect.top && position.y <= btnRect.bottom) {
+      // Trigger immediate erase
+      this.clearAllImmediate();
+      // Broadcast to peers
+      if (this.multiplayer.isConnected()) {
+        this.multiplayer.broadcast({ type: 'clear_all' });
+      }
+      return true;
+    }
+    return false;
+  }
+
 
 
   private handleGesture(state: GestureState, landmarks: HandLandmarks): void {
     const indexTip = this.gestureDetector.getIndexTip(landmarks);
 
+    // Check for erase button selection with pointing finger (any gesture)
+    if (this.checkEraseSelection(indexTip)) {
+      return; // Erase screen
+    }
+
     switch (state.current) {
       case 'draw':
+        // Check for erase button selection with pointing finger
+        if (this.checkEraseSelection(indexTip)) {
+          return; // Erase screen instead of drawing
+        }
         // Check for shape selection with pointing finger
         if (this.checkShapeSelection(indexTip)) {
           return; // Select shape instead of drawing
@@ -915,6 +952,13 @@ class AirCanvas {
     this.showStatus('Clearing all...');
     this.drawingCanvas.clearAll();
     await this.objectManager.clearAll();
+    this.hideStatus();
+  }
+
+  private clearAllImmediate(): void {
+    this.showStatus('Erasing screen...', 1000);
+    this.drawingCanvas.clearAll();
+    this.objectManager.clearAllImmediate();
     this.hideStatus();
   }
 

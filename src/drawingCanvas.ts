@@ -180,6 +180,7 @@ export class DrawingCanvas {
   clearAll(): void {
     this.currentStroke = null;
     this.completedStrokes = [];
+    this.clearLivePosition();
     this.clear();
   }
 
