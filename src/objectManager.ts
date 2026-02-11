@@ -420,7 +420,7 @@ export class ObjectManager {
       const currentTime = performance.now();
       const deltaTime = (currentTime - startTime) / 1000;
 
-      particles.forEach((particle, index) => {
+      particles.forEach((particle) => {
         if (particle.userData.life <= 0) return;
 
         // Update position

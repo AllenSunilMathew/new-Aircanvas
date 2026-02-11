@@ -5,7 +5,7 @@ import { HandVisualizer } from './handVisualizer';
 import { Scene3D } from './scene3D';
 import { ObjectManager } from './objectManager';
 import { Multiplayer, MultiplayerEvent } from './multiplayer';
-import { HandLandmarks, GestureState, BalloonObject, Stroke, Point2D } from './types';
+import { HandLandmarks, GestureState, BalloonObject, Stroke, Point2D, ShapeType } from './types';
 import { GESTURE, TIMING, STROKE } from './constants';
 
 class AirCanvas {
@@ -39,7 +39,12 @@ class AirCanvas {
   // State
   private isDrawing = false;
   private currentColor = '#FFB3BA';
+  private currentShapeType: ShapeType = 'freehand';
   private lastGestureState: GestureState | null = null;
+  private shapeCreatedThisGesture = false;
+  private lastShapeCreationTime = 0;
+  private isDrawingShape = false;
+  private shapeStartPosition: Point2D | null = null;
   private currentLandmarks: HandLandmarks | null = null;
   private palmHoldStart = 0;
   private handDetected = false;
@@ -112,6 +117,7 @@ class AirCanvas {
     this.setupButtonListeners();
     this.setupPreviewDrag();
     this.setupMultiplayer();
+    this.setupShapePalette();
 
     // Start the application
     this.init();
@@ -300,7 +306,7 @@ class AirCanvas {
 
   private updatePreviewCanvasSize(): void {
     const cameraPreview = document.getElementById('camera-preview');
-    const isExpanded = cameraPreview?.classList.contains('expanded');
+    // const isExpanded = cameraPreview?.classList.contains('expanded');
 
     // Get computed size of the preview container
     if (cameraPreview) {
@@ -625,6 +631,33 @@ class AirCanvas {
     return false;
   }
 
+  private checkShapeSelection(position: { x: number; y: number }): boolean {
+    const shapePalette = document.getElementById('shape-palette');
+    if (!shapePalette) return false;
+
+    const paletteRect = shapePalette.getBoundingClientRect();
+    if (position.x < paletteRect.left || position.x > paletteRect.right ||
+        position.y < paletteRect.top || position.y > paletteRect.bottom) {
+      return false; // Not over palette
+    }
+
+    // Check each shape swatch
+    const shapeSwatches = document.querySelectorAll('.shape-swatch');
+    for (let i = 0; i < shapeSwatches.length; i++) {
+      const swatch = shapeSwatches[i] as HTMLElement;
+      const swatchRect = swatch.getBoundingClientRect();
+      if (position.x >= swatchRect.left && position.x <= swatchRect.right &&
+          position.y >= swatchRect.top && position.y <= swatchRect.bottom) {
+        // Select this shape
+        shapeSwatches.forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        this.currentShapeType = swatch.dataset.shape as ShapeType;
+        return true;
+      }
+    }
+    return false;
+  }
+
 
 
   private handleGesture(state: GestureState, landmarks: HandLandmarks): void {
@@ -632,11 +665,31 @@ class AirCanvas {
 
     switch (state.current) {
       case 'draw':
+        // Check for shape selection with pointing finger
+        if (this.checkShapeSelection(indexTip)) {
+          return; // Select shape instead of drawing
+        }
         // Check for color selection with pointing finger
         if (this.checkColorSelection(indexTip)) {
           return; // Select color instead of drawing
         }
-        this.handleDraw(indexTip);
+
+        // Handle draw gesture
+        if (this.lastGestureState && this.lastGestureState.current !== 'draw') {
+          // Entering draw gesture - reset the flag
+          this.shapeCreatedThisGesture = false;
+          if (this.currentShapeType === 'freehand') {
+            this.isDrawing = true;
+            this.drawingCanvas.startStroke(indexTip, this.currentColor);
+          } else {
+            // Create shape immediately at start of gesture
+            this.createShapeAtPosition(indexTip);
+            this.shapeCreatedThisGesture = true;
+          }
+        } else if (this.currentShapeType === 'freehand' && this.isDrawing) {
+          // Continue freehand drawing
+          this.drawingCanvas.addPoint(indexTip);
+        }
         break;
 
       case 'pinch':
@@ -690,6 +743,7 @@ class AirCanvas {
       // Clear live position when leaving draw mode
       if (this.lastGestureState.current === 'draw') {
         this.drawingCanvas.clearLivePosition();
+        this.shapeCreatedThisGesture = false; // Reset shape creation flag
       }
 
       // Reset zoom states when gesture changes
@@ -712,20 +766,23 @@ class AirCanvas {
       return;
     }
 
-    // Freehand drawing
-    this.drawingCanvas.updateLivePosition(position);
+    if (this.currentShapeType === 'freehand') {
+      // Freehand drawing
+      this.drawingCanvas.updateLivePosition(position);
 
-    if (!this.isDrawing) {
-      // Start new stroke
-      this.isDrawing = true;
-      this.drawingCanvas.startStroke(position, this.currentColor);
-    } else {
-      // Continue stroke
-      this.drawingCanvas.addPoint(position);
+      if (!this.isDrawing) {
+        // Start new stroke
+        this.isDrawing = true;
+        this.drawingCanvas.startStroke(position, this.currentColor);
+      } else {
+        // Continue stroke
+        this.drawingCanvas.addPoint(position);
+      }
+
+      // Render immediately for lowest latency (don't wait for animation frame)
+      this.drawingCanvas.render();
     }
-
-    // Render immediately for lowest latency (don't wait for animation frame)
-    this.drawingCanvas.render();
+    // Shape creation is handled in handleGesture at the start of the draw gesture
   }
 
   private handlePinch(landmarks: HandLandmarks): void {
@@ -777,8 +834,17 @@ class AirCanvas {
     const holdDuration = performance.now() - this.palmHoldStart;
 
     if (holdDuration >= GESTURE.PALM_HOLD_TIME) {
-      // Close and inflate current stroke
-      this.closeAndInflate();
+      // Check if palm is over a 2D shape to inflate it
+      const palmCenter = this.getPalmCenter(this.currentLandmarks!);
+      const shapeToInflate = this.getShapeAtPosition(palmCenter);
+
+      if (shapeToInflate) {
+        // Inflate the 2D shape into 3D
+        this.inflateShape(shapeToInflate);
+      } else {
+        // Close and inflate current stroke (for freehand drawing)
+        this.closeAndInflate();
+      }
       this.palmHoldStart = 0;
     }
   }
@@ -934,6 +1000,140 @@ class AirCanvas {
 
   private hideStatus(): void {
     this.statusMessage.classList.remove('visible');
+  }
+
+  private setupShapePalette(): void {
+    const shapeSwatches = document.querySelectorAll('.shape-swatch');
+    shapeSwatches.forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        // Remove active class from all swatches
+        shapeSwatches.forEach(s => s.classList.remove('active'));
+        // Add active class to clicked swatch
+        swatch.classList.add('active');
+        // Update current shape type
+        this.currentShapeType = (swatch as HTMLElement).dataset.shape as ShapeType;
+      });
+    });
+  }
+
+  private getPalmCenter(landmarks: HandLandmarks): Point2D {
+    const wrist = landmarks.landmarks[0]; // WRIST
+    const indexMcp = landmarks.landmarks[5]; // INDEX_MCP
+    const pinkyMcp = landmarks.landmarks[17]; // PINKY_MCP
+
+    return {
+      x: (wrist.x + indexMcp.x + pinkyMcp.x) / 3,
+      y: (wrist.y + indexMcp.y + pinkyMcp.y) / 3
+    };
+  }
+
+  private getShapeAtPosition(position: Point2D): Stroke | null {
+    // Check if position is over any completed stroke (2D shape)
+    // This is a simple implementation - in a real app you'd need more sophisticated hit testing
+    const tolerance = 20; // pixels
+
+    // For now, return the last completed stroke if it's a shape (not freehand)
+    // In a more complete implementation, you'd check all strokes and see if the point is near any stroke
+    const completedStrokes = this.drawingCanvas.getCompletedStrokes();
+    for (let i = completedStrokes.length - 1; i >= 0; i--) {
+      const stroke = completedStrokes[i];
+      if (stroke.shapeType && stroke.shapeType !== 'freehand') {
+        // Check if position is near the center of the shape
+        const center = this.getStrokeCenter(stroke);
+        const distance = Math.sqrt(
+          Math.pow(position.x - center.x, 2) + Math.pow(position.y - center.y, 2)
+        );
+        if (distance < tolerance) {
+          return stroke;
+        }
+      }
+    }
+    return null;
+  }
+
+  private getStrokeCenter(stroke: Stroke): Point2D {
+    let sumX = 0, sumY = 0;
+    for (const point of stroke.points) {
+      sumX += point.x;
+      sumY += point.y;
+    }
+    return {
+      x: sumX / stroke.points.length,
+      y: sumY / stroke.points.length
+    };
+  }
+
+  private async inflateShape(stroke: Stroke): Promise<void> {
+    // Remove the 2D shape from canvas
+    this.drawingCanvas.removeCompletedStroke(stroke);
+
+    // Create 3D balloon from the stroke
+    await this.createBalloon(stroke);
+  }
+
+  private createShapeAtPosition(position: Point2D): void {
+    const size = 300; // Larger size for shapes
+    let points: Point2D[] = [];
+
+    switch (this.currentShapeType) {
+      case 'circle':
+        // Create circle points
+        const centerX = position.x;
+        const centerY = position.y;
+        const radius = size / 2;
+        const numPoints = 32;
+        for (let i = 0; i < numPoints; i++) {
+          const angle = (i / numPoints) * Math.PI * 2;
+          points.push({
+            x: centerX + Math.cos(angle) * radius,
+            y: centerY + Math.sin(angle) * radius
+          });
+        }
+        break;
+
+      case 'square':
+        // Create square points
+        const halfSize = size / 2;
+        points = [
+          { x: position.x - halfSize, y: position.y - halfSize },
+          { x: position.x + halfSize, y: position.y - halfSize },
+          { x: position.x + halfSize, y: position.y + halfSize },
+          { x: position.x - halfSize, y: position.y + halfSize },
+          { x: position.x - halfSize, y: position.y - halfSize } // Close the square
+        ];
+        break;
+
+      case 'triangle':
+        // Create triangle points
+        const height = size * Math.sqrt(3) / 2;
+        points = [
+          { x: position.x, y: position.y - height / 2 },
+          { x: position.x - size / 2, y: position.y + height / 2 },
+          { x: position.x + size / 2, y: position.y + height / 2 },
+          { x: position.x, y: position.y - height / 2 } // Close the triangle
+        ];
+        break;
+
+      default:
+        return; // Should not happen
+    }
+
+    // Create stroke from points
+    const stroke: Stroke = {
+      points,
+      color: this.currentColor,
+      width: STROKE.WIDTH,
+      closed: true,
+      shapeType: this.currentShapeType
+    };
+
+    // Add the shape to the drawing canvas as a 2D stroke
+    this.drawingCanvas.addCompletedStroke(stroke);
+
+    // Automatically inflate to 3D after a brief delay, like freehand strokes
+    setTimeout(() => {
+      this.inflateShape(stroke);
+    }, 1000); // 1 second delay to allow seeing the 2D shape
   }
 
 

@@ -344,4 +344,12 @@ export class DrawingCanvas {
       this.completedStrokes.splice(index, 1);
     }
   }
+
+  addCompletedStroke(stroke: Stroke): void {
+    this.completedStrokes.push(stroke);
+  }
+
+  getCompletedStrokes(): Stroke[] {
+    return this.completedStrokes;
+  }
 }

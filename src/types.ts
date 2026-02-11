@@ -17,6 +17,7 @@ export interface Stroke {
   color: string;
   width: number;
   closed: boolean;
+  shapeType?: ShapeType;
 }
 
 export interface HandLandmarks {
@@ -35,7 +36,7 @@ export type GestureType =
   | 'two'       // Two fingers extended (zoom in)
   | 'three';    // Three fingers extended (zoom out)
 
-export type ShapeType = 'freehand';
+export type ShapeType = 'freehand' | 'circle' | 'square' | 'triangle';
 
 export interface GestureState {
   current: GestureType;

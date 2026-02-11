@@ -1,17 +1,12 @@
 import { HandLandmarks, GestureType, GestureState, Point2D } from './types';
-import { LANDMARKS, GESTURE } from './constants';
+import { LANDMARKS } from './constants';
 
 export class GestureDetector {
-  getPinchDistance(landmarks: HandLandmarks) {
-    throw new Error('Method not implemented.');
-  }
   private lastLandmarks: HandLandmarks | null = null;
   private lastTime: number = 0;
   private gestureStartTime: number = 0;
   private currentGesture: GestureType = 'none';
   private previousGesture: GestureType = 'none';
-  private palmHistory: Point2D[] = [];
-  private velocityHistory: Point2D[] = [];
 
   detect(landmarks: HandLandmarks | null): GestureState {
     const now = performance.now();
@@ -23,7 +18,7 @@ export class GestureDetector {
     }
 
     const velocity = this.calculateVelocity(landmarks, dt);
-    const detectedGesture = this.detectGestureType(landmarks, velocity);
+    const detectedGesture = this.detectGestureType(landmarks);
 
     if (detectedGesture !== this.currentGesture) {
       this.previousGesture = this.currentGesture;
@@ -76,7 +71,7 @@ export class GestureDetector {
     };
   }
 
-  private detectGestureType(landmarks: HandLandmarks, velocity: Point2D): GestureType {
+  private detectGestureType(landmarks: HandLandmarks): GestureType {
     const lm = landmarks.landmarks;
 
     // 1. PINCH CHECK (High Priority) - Threshold increased to 60 for easier grabbing
@@ -179,17 +174,5 @@ export class GestureDetector {
     return { x: (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 };
   }
 
-  private isWaveGesture(landmarks: HandLandmarks, velocity: Point2D): boolean {
-    // Check if all fingers are extended (open palm)
-    if (!this.isOpenPalm(landmarks)) {
-      return false;
-    }
 
-    // Check for significant horizontal movement (waving left/right)
-    const horizontalSpeed = Math.abs(velocity.x);
-    const verticalSpeed = Math.abs(velocity.y);
-
-    // Wave should be primarily horizontal with some minimum speed
-    return horizontalSpeed > 200 && horizontalSpeed > verticalSpeed * 2;
-  }
 }
