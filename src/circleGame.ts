@@ -8,6 +8,7 @@ interface CircleScore {
   circularity: number;
   isCircle: boolean;
   feedback: string;
+  shapeName: string;
 }
 
 class CircleGame {
@@ -206,21 +207,33 @@ class CircleGame {
 
     this.isDrawing = false;
 
+    // Debug: log points count
+    console.log('Drawing finished. Points:', this.drawingPoints.length);
+
     // Analyze the drawn shape
     if (this.drawingPoints.length >= this.minPointsForCircle) {
       const result = this.calculateCircularity(this.drawingPoints);
+      
+      // Debug: log analysis results
+      console.log('Result:', result);
+      
       this.lastAccuracy = result.circularity;
       this.updateAccuracyDisplay(result.circularity);
       
-      if (result.isCircle) {
-        this.showFeedback(result.feedback, 2000);
-      }
+      // Show feedback for ALL shapes, not just circles
+      console.log('Showing feedback:', result.feedback);
+      this.showFeedback(result.feedback, 3000);
     } else {
-      this.showFeedback('Draw a bigger circle!', 1500);
+      console.log('Not enough points. Need:', this.minPointsForCircle, 'Got:', this.drawingPoints.length);
+      this.showFeedback('Draw a bigger shape!', 1500);
     }
   }
 
   private calculateCircularity(points: Point2D[]): CircleScore {
+    if (points.length < 2) {
+      return { circularity: 0, isCircle: false, feedback: 'Draw a bigger circle!', shapeName: 'Unknown' };
+    }
+
     // Calculate centroid
     let sumX = 0, sumY = 0;
     for (const p of points) {
@@ -232,49 +245,114 @@ class CircleGame {
 
     // Calculate average radius
     let sumRadius = 0;
-    for (const p of points) {
-      sumRadius += Math.sqrt(
-        Math.pow(p.x - centerX, 2) + Math.pow(p.y - centerY, 2)
-      );
-    }
-    const avgRadius = sumRadius / points.length;
-
-    // Calculate circularity (variance of radius from centroid)
-    let variance = 0;
+    const radii: number[] = [];
     for (const p of points) {
       const r = Math.sqrt(
         Math.pow(p.x - centerX, 2) + Math.pow(p.y - centerY, 2)
       );
+      radii.push(r);
+      sumRadius += r;
+    }
+    const avgRadius = sumRadius / points.length;
+
+    // Calculate radius variance (how consistent the distance from center is)
+    let variance = 0;
+    for (const r of radii) {
       variance += Math.pow(r - avgRadius, 2);
     }
     variance /= points.length;
     const stdDev = Math.sqrt(variance);
-    const circularity = avgRadius > 0 ? Math.max(0, 1 - (stdDev / avgRadius)) : 0;
-    const circularityPercent = Math.round(circularity * 100);
+    const radiusConsistency = avgRadius > 0 ? Math.max(0, 1 - (stdDev / avgRadius)) : 0;
+    const radiusPercent = Math.round(radiusConsistency * 100);
 
-    // Determine if it's a circle (above threshold)
-    const isCircle = circularityPercent >= 60;
+    // Calculate angular distribution (key for distinguishing circles from squares/triangles)
+    const numSectors = 12; // Divide circle into 12 sectors (30 degrees each)
+    const sectorCounts = new Array(numSectors).fill(0);
     
-    // Feedback based on circularity
+    for (const p of points) {
+      // Calculate angle in radians (-π to π)
+      const angle = Math.atan2(p.y - centerY, p.x - centerX);
+      // Convert to 0 to 2π
+      const normalizedAngle = angle < 0 ? angle + Math.PI * 2 : angle;
+      // Find which sector
+      const sectorIndex = Math.floor((normalizedAngle / (Math.PI * 2)) * numSectors) % numSectors;
+      sectorCounts[sectorIndex]++;
+    }
+
+    // Count how many sectors have significant points (at least 5% of total points)
+    const threshold = points.length * 0.05;
+    let sectorsWithPoints = 0;
+    for (const count of sectorCounts) {
+      if (count >= threshold) {
+        sectorsWithPoints++;
+      }
+    }
+
+    // For a perfect circle, all/nearly all sectors should have points
+    // For a square, only ~4 sectors have points (the corners)
+    // For a triangle, only ~3 sectors have points
+    const angularScore = Math.round((sectorsWithPoints / numSectors) * 100);
+
+    // Check if start and end points are close (closed shape)
+    const startPoint = points[0];
+    const endPoint = points[points.length - 1];
+    const distanceStartEnd = Math.sqrt(
+      Math.pow(endPoint.x - startPoint.x, 2) + Math.pow(endPoint.y - startPoint.y, 2)
+    );
+    const closureThreshold = avgRadius * 0.4;
+    const isClosed = distanceStartEnd < closureThreshold;
+    const closurePercent = avgRadius > 0 ? Math.max(0, 100 - (distanceStartEnd / avgRadius) * 100) : 0;
+
+    // Combined score: needs both good angular distribution AND radius consistency AND closure
+    // Weight angular distribution more heavily (it's the key differentiator)
+    const combinedScore = Math.round((angularScore * 0.5) + (radiusPercent * 0.3) + (closurePercent * 0.2));
+
+    // Determine if it's a circle
+    const isCircle = angularScore >= 75 && radiusPercent >= 50 && isClosed;
+
+    // Analyze what shape it is
+    let shapeName = 'Unknown';
+    if (isCircle) {
+      shapeName = 'Circle';
+    } else if (sectorsWithPoints <= 4 && radiusPercent >= 40) {
+      shapeName = 'Square';
+    } else if (sectorsWithPoints <= 3 && radiusPercent >= 35) {
+      shapeName = 'Triangle';
+    } else if (angularScore >= 60 && radiusPercent < 45) {
+      shapeName = 'Oval/Ellipse';
+    } else if (angularScore >= 50 && radiusPercent < 40) {
+      shapeName = 'Rectangle';
+    } else if (angularScore < 40) {
+      shapeName = 'Polygon';
+    } else {
+      shapeName = 'Irregular Shape';
+    }
+
+    // Feedback based on combined analysis
     let feedback = '';
-    if (circularityPercent >= 90) {
+    if (!isClosed) {
+      feedback = 'Close your shape to make a circle!';
+    } else if (!isCircle) {
+      feedback = `Not a circle! This looks more like a ${shapeName}`;
+    } else if (combinedScore >= 90 && isCircle) {
       feedback = '🎯 PERFECT CIRCLE!';
-    } else if (circularityPercent >= 80) {
+    } else if (combinedScore >= 80 && isCircle) {
       feedback = '⭐ Excellent!';
-    } else if (circularityPercent >= 70) {
+    } else if (combinedScore >= 70 && isCircle) {
       feedback = '✓ Good Circle';
-    } else if (circularityPercent >= 60) {
+    } else if (combinedScore >= 60 && isCircle) {
       feedback = 'Not bad!';
-    } else if (circularityPercent >= 50) {
-      feedback = 'Try to make it rounder';
+    } else if (combinedScore >= 50) {
+      feedback = 'Try to make it more circular';
     } else {
       feedback = 'Keep practicing!';
     }
 
     return {
-      circularity: circularityPercent,
+      circularity: combinedScore,
       isCircle,
-      feedback
+      feedback,
+      shapeName
     };
   }
 
@@ -337,7 +415,30 @@ class CircleGame {
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Draw user's stroke
+    // Calculate real-time accuracy if drawing
+    let strokeColor = this.currentColor;
+    let currentAccuracy = 0;
+    
+    if (this.drawingPoints.length >= this.minPointsForCircle) {
+      const result = this.calculateCircularity(this.drawingPoints);
+      currentAccuracy = result.circularity;
+      
+      // Color based on real-time accuracy
+      if (currentAccuracy >= 80) {
+        strokeColor = '#4ade80'; // Green - Great circle
+      } else if (currentAccuracy >= 60) {
+        strokeColor = '#FFD700'; // Gold - Good circle
+      } else if (currentAccuracy >= 40) {
+        strokeColor = '#fbbf24'; // Yellow - Needs improvement
+      } else {
+        strokeColor = '#f87171'; // Red - Not circular
+      }
+      
+      // Update accuracy display in real-time
+      this.updateAccuracyDisplay(currentAccuracy);
+    }
+
+    // Draw user's stroke with dynamic color
     if (this.drawingPoints.length > 0) {
       this.ctx.beginPath();
       this.ctx.moveTo(this.drawingPoints[0].x, this.drawingPoints[0].y);
@@ -351,18 +452,18 @@ class CircleGame {
         this.ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
       }
 
-      this.ctx.strokeStyle = this.currentColor;
+      this.ctx.strokeStyle = strokeColor;
       this.ctx.lineWidth = STROKE.WIDTH;
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
       this.ctx.stroke();
 
-      // Draw live point
+      // Draw live point with dynamic color
       if (this.drawingPoints.length > 0) {
         const lastPoint = this.drawingPoints[this.drawingPoints.length - 1];
         this.ctx.beginPath();
         this.ctx.arc(lastPoint.x, lastPoint.y, STROKE.WIDTH / 2, 0, Math.PI * 2);
-        this.ctx.fillStyle = this.currentColor;
+        this.ctx.fillStyle = strokeColor;
         this.ctx.fill();
       }
     }
