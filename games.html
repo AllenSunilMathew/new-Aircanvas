@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Draw Circle Game - AirCanvas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.binarypb" as="fetch" crossorigin>
+  <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands_solution_packed_assets_loader.js" as="script" crossorigin>
+  <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands_solution_simd_wasm_bin.js" as="script" crossorigin>
+  <style>
+    :root {
+      --primary-color: #FFD700;
+      --primary-glow: rgba(255, 215, 0, 0.5);
+      --ui-bg: rgba(0, 0, 0, 0.8);
+      --ui-border: rgba(255, 215, 0, 0.3);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #000000;
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: linear-gradient(135deg, #000000 0%, #1a0000 50%, #330000 100%);
+    }
+
+    /* Game Canvas */
+    #game-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Hand visualization layer */
+    #hand-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* Video element for webcam */
+    #webcam {
+      display: none;
+    }
+
+    /* Camera preview */
+    #camera-preview {
+      position: absolute;
+      top: 50%;
+      left: 24px;
+      transform: translateY(-50%);
+      width: 200px;
+      height: 150px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid var(--ui-border);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 15px var(--primary-glow);
+      z-index: 10;
+      background: #000;
+    }
+
+    #camera-preview video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    /* Score display */
+    #score-panel {
+      position: absolute;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 11;
+      background: var(--ui-bg);
+      border: 1px solid var(--ui-border);
+      border-radius: 25px;
+      padding: 16px 32px;
+      backdrop-filter: blur(10px);
+      text-align: center;
+    }
+
+    .accuracy-label {
+      color: rgba(232, 186, 255, 0.6);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .accuracy-value {
+      color: var(--primary-color);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 42px;
+      font-weight: 500;
+      text-shadow: 0 0 15px var(--primary-glow);
+    }
+
+    /* Feedback message */
+    #feedback-display {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      color: var(--primary-color);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 36px;
+      font-weight: 500;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      text-shadow: 0 0 20px var(--primary-glow), 0 0 40px var(--primary-glow);
+      pointer-events: none;
+    }
+
+    #feedback-display.visible {
+      opacity: 1;
+    }
+
+    /* Game menu */
+    #game-menu {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 50% 50%, #2a1a2a 0%, #1d0d1d 50%, #0f050f 100%);
+    }
+
+    #game-menu.hidden {
+      display: none;
+    }
+
+    .menu-title {
+      color: var(--primary-color);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 48px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      text-shadow: 0 0 20px var(--primary-glow), 0 0 40px var(--primary-glow);
+    }
+
+    .menu-subtitle {
+      color: rgba(232, 186, 255, 0.7);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      margin-bottom: 40px;
+    }
+
+    .menu-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px 40px;
+      background: var(--ui-bg);
+      border: 1px solid var(--ui-border);
+      border-radius: 30px;
+      color: var(--primary-color);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(10px);
+      margin-bottom: 16px;
+      text-decoration: none;
+    }
+
+    .menu-btn:hover {
+      background: rgba(232, 186, 255, 0.15);
+      border-color: var(--primary-glow);
+      transform: translateY(-2px);
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .menu-btn.primary {
+      background: rgba(255, 215, 0, 0.2);
+      border-color: var(--primary-color);
+    }
+
+    /* Action buttons */
+    #game-actions {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      z-index: 11;
+      display: flex;
+      gap: 12px;
+    }
+
+    .game-btn {
+      padding: 12px 20px;
+      background: var(--ui-bg);
+      border: 1px solid var(--ui-border);
+      border-radius: 25px;
+      color: var(--primary-color);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    .game-btn:hover {
+      background: rgba(232, 186, 255, 0.15);
+      border-color: var(--primary-glow);
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+
+    /* Gesture hints */
+    .gesture-hints {
+      position: absolute;
+      bottom: 24px;
+      left: 240px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      opacity: 0.8;
+    }
+
+    .gesture-hint {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(232, 186, 255, 0.8);
+      font-size: 12px;
+      font-weight: 300;
+    }
+
+    .gesture-icon {
+      width: 26px;
+      height: 26px;
+      background: rgba(232, 186, 255, 0.1);
+      border: 1px solid var(--ui-border);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+
+    /* Instruction text */
+    #instruction-display {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 11;
+      color: rgba(232, 186, 255, 0.7);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    /* Loading overlay */
+    #loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(ellipse at 50% 50%, #2a1a2a 0%, #1d0d1d 50%, #0f050f 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.5s ease;
+    }
+
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-spinner {
+      width: 60px;
+      height: 60px;
+      border: 2px solid rgba(232, 186, 255, 0.2);
+      border-top-color: var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: var(--primary-color);
+      margin-top: 24px;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 20px;
+      font-style: italic;
+      text-shadow: 0 0 10px var(--primary-glow);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #camera-preview {
+        width: 140px;
+        height: 105px;
+        top: 80px;
+        left: 12px;
+        transform: none;
+      }
+
+      #score-panel {
+        padding: 12px 20px;
+      }
+
+      .accuracy-value {
+        font-size: 32px;
+      }
+
+      .menu-title {
+        font-size: 36px;
+      }
+
+      .gesture-hints {
+        display: none;
+      }
+
+      #instruction-display {
+        bottom: 60px;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Webcam -->
+    <video id="webcam" playsinline></video>
+
+    <!-- Game Canvas -->
+    <canvas id="game-canvas"></canvas>
+    
+    <!-- Hand Canvas -->
+    <canvas id="hand-canvas"></canvas>
+
+    <!-- Camera Preview -->
+    <div id="camera-preview">
+      <video id="preview-video" playsinline muted></video>
+    </div>
+
+    <!-- Score Panel -->
+    <div id="score-panel">
+      <div class="accuracy-label">Circularity</div>
+      <div class="accuracy-value" id="accuracy-display">0%</div>
+    </div>
+
+    <!-- Feedback Display -->
+    <div id="feedback-display"></div>
+
+    <!-- Instruction Display -->
+    <div id="instruction-display">
+      Point with your index finger and draw a circle
+    </div>
+
+    <!-- Game Actions -->
+    <div id="game-actions">
+      <button class="game-btn" id="clear-btn">Clear</button>
+      <button class="game-btn" id="menu-btn">← Menu</button>
+    </div>
+
+    <!-- Gesture Hints -->
+    <div class="gesture-hints">
+      <div class="gesture-hint">
+        <div class="gesture-icon">☝️</div>
+        <span>Point to draw</span>
+      </div>
+    </div>
+
+    <!-- Game Menu -->
+    <div id="game-menu">
+      <div class="menu-title">Draw Circle</div>
+      <div class="menu-subtitle">Test your circle drawing skills</div>
+      <button class="menu-btn primary" id="start-btn">
+        <span>🎮</span> Start Game
+      </button>
+      <a href="index.html" class="menu-btn">
+        <span>🏠</span> Back to AirCanvas
+      </a>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Initializing hand tracking...</div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/circleGame.ts"></script>
+</body>
+</html>
