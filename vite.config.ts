@@ -3,6 +3,10 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   server: {
-    allowedHosts: ['aircanvas-498q.onrender.com'],
+    host: true,
+    port: 5173
   },
+  build: {
+    target: 'esnext'
+  }
 });
