@@ -38,6 +38,14 @@ export type GestureType =
 
 export type ShapeType = 'freehand' | 'circle' | 'square' | 'triangle';
 
+export interface ShapeAnalysisResult {
+  shapeType: ShapeType;
+  confidence: number;
+  feedback: string;
+  isClosed: boolean;
+}
+
+
 export interface GestureState {
   current: GestureType;
   previous: GestureType;

@@ -1,5 +1,7 @@
-import { Point2D, Stroke } from './types';
-import { STROKE, GESTURE } from './constants';
+import { Point2D, Stroke, ShapeAnalysisResult } from './types';
+import { analyzeShape, generatePerfectShape, straightenStroke } from './shapeUtils';
+
+import { STROKE, GESTURE, WELDING } from './constants';
 
 // Jitter filter threshold - ignore movements smaller than this
 const JITTER_THRESHOLD = 3;
@@ -143,14 +145,14 @@ export class DrawingCanvas {
       return null;
     }
 
-    // Close the path by connecting last point to first
-    if (this.currentStroke.points.length > 2) {
-      this.currentStroke.closed = true;
-      const closedStroke = { ...this.currentStroke };
-      this.completedStrokes.push(closedStroke);
-      this.currentStroke = null;
-      return closedStroke;
-    }
+// Auto-straighten if high confidence (length already checked above)
+    const straightened = straightenStroke(this.currentStroke!, 70); // 70% threshold
+    straightened.closed = true;
+    this.completedStrokes.push(straightened);
+    this.currentStroke = null;
+    return straightened;
+
+
 
     this.discardStroke();
     return null;
@@ -228,9 +230,134 @@ export class DrawingCanvas {
       return;
     }
 
-    // Use smooth bezier curves
+    this.renderWeldingEffect(stroke, alpha, true);
+    this.ctx.restore();
+  }
+
+  public renderStroke(stroke: Stroke, alpha: number): void {
+    if (stroke.points.length === 0) return;
+
+    this.ctx.save();
+    this.ctx.globalAlpha = alpha;
+    this.ctx.fillStyle = stroke.color;
+    this.ctx.strokeStyle = stroke.color;
+    this.ctx.lineWidth = stroke.width;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    // If only one point, draw a dot
+    if (stroke.points.length === 1) {
+      this.ctx.beginPath();
+      this.ctx.arc(stroke.points[0].x, stroke.points[0].y, stroke.width / 2, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+      return;
+    }
+
+    this.renderWeldingEffect(stroke, alpha * 0.6, false);
+    this.ctx.restore();
+  }
+
+  private renderWeldingEffect(stroke: Stroke, alpha: number, isLive: boolean): void {
+    if (stroke.points.length === 0) return;
+
+    this.ctx.save();
+    this.ctx.globalAlpha = alpha;
+
+    // Points for path (add live for live drawing)
+    let points: Point2D[] = [...stroke.points];
+    if (stroke.closed) {
+      points.push(stroke.points[0]);
+    }
+    if (isLive && this.livePosition) {
+      points.push(this.livePosition);
+    }
+
+    // Single point - glow spark dot
+    if (points.length === 1) {
+      const grad = this.ctx.createRadialGradient(points[0].x, points[0].y, 0, points[0].x, points[0].y, stroke.width * 1.5);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.5, '#ffff44');
+      grad.addColorStop(1, 'transparent');
+      this.ctx.shadowBlur = 12;
+      this.ctx.shadowColor = '#ffffff';
+      this.ctx.fillStyle = grad;
+      this.ctx.beginPath();
+      this.ctx.arc(points[0].x, points[0].y, stroke.width * 1.5, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+      return;
+    }
+
+    // Multi-layer glow passes
+    const glowColors = WELDING.GLOW_COLORS;
+    const blurs = WELDING.GLOW_BLURS;
+    const mults = WELDING.GLOW_WIDTH_MULTIPLIERS;
+    for (let l = 0; l < glowColors.length; l++) {
+      this.ctx.save();
+      this.ctx.strokeStyle = glowColors[l];
+      this.ctx.shadowColor = glowColors[l];
+      this.ctx.shadowBlur = blurs[l];
+      this.ctx.shadowOffsetX = (Math.random() - 0.5) * 4;
+      this.ctx.shadowOffsetY = (Math.random() - 0.5) * 4;
+      this.ctx.lineWidth = stroke.width * mults[l];
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      this.drawSmoothCurve(points);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
+    // Sparks along stroke
+    const density = WELDING.SPARK_DENSITY;
+    const minSize = WELDING.SPARK_MIN_SIZE;
+    const maxSize = WELDING.SPARK_MAX_SIZE;
+    for (let i = 1; i < stroke.points.length; i += 4) {
+      if (Math.random() < density) {
+        const x = (stroke.points[i-1].x + stroke.points[i].x) / 2 + (Math.random() - 0.5) * stroke.width;
+        const y = (stroke.points[i-1].y + stroke.points[i].y) / 2 + (Math.random() - 0.5) * stroke.width;
+        const size = minSize + Math.random() * (maxSize - minSize);
+        const sparkGrad = this.ctx.createRadialGradient(x, y, 0, x, y, size);
+        sparkGrad.addColorStop(0, '#ffffff');
+        sparkGrad.addColorStop(0.4, '#ffaa00');
+        sparkGrad.addColorStop(1, 'transparent');
+        this.ctx.save();
+        this.ctx.shadowBlur = 6;
+        this.ctx.shadowColor = '#ffffff';
+        this.ctx.fillStyle = sparkGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, size, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
+    }
+
+    // Tip spark for live
+    if (isLive && this.livePosition) {
+      const x = this.livePosition.x;
+      const y = this.livePosition.y;
+      const size = WELDING.SPARK_MAX_SIZE * WELDING.TIP_SPARK_MULTIPLIER;
+      const tipGrad = this.ctx.createRadialGradient(x, y, 0, x, y, size);
+      tipGrad.addColorStop(0, '#ffffff');
+      tipGrad.addColorStop(0.3, '#ffff00');
+      tipGrad.addColorStop(1, 'transparent');
+      this.ctx.save();
+      this.ctx.shadowBlur = 20;
+      this.ctx.shadowColor = '#ffffff';
+      this.ctx.fillStyle = tipGrad;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, size, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    }
+
+    // Sharp core in stroke color
+    this.ctx.strokeStyle = stroke.color;
+    this.ctx.shadowBlur = 0;
+    this.ctx.lineWidth = stroke.width;
     this.drawSmoothCurve(points);
     this.ctx.stroke();
+
     this.ctx.restore();
   }
 
@@ -266,36 +393,6 @@ export class DrawingCanvas {
         this.ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
       }
     }
-  }
-
-  public renderStroke(stroke: Stroke, alpha: number): void {
-    if (stroke.points.length === 0) return;
-
-    this.ctx.save();
-    this.ctx.globalAlpha = alpha;
-    this.ctx.fillStyle = stroke.color;
-    this.ctx.strokeStyle = stroke.color;
-    this.ctx.lineWidth = stroke.width;
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
-
-    // If only one point, draw a dot
-    if (stroke.points.length === 1) {
-      this.ctx.beginPath();
-      this.ctx.arc(stroke.points[0].x, stroke.points[0].y, stroke.width / 2, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.restore();
-      return;
-    }
-
-    // Use smooth curves
-    let points = [...stroke.points];
-    if (stroke.closed) {
-      points.push(stroke.points[0]);  // Close the loop
-    }
-    this.drawSmoothCurve(points);
-    this.ctx.stroke();
-    this.ctx.restore();
   }
 
   renderClosingAnimation(stroke: Stroke, progress: number): void {
@@ -354,3 +451,4 @@ export class DrawingCanvas {
     return this.completedStrokes;
   }
 }
+

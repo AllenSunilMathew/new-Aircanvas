@@ -47,7 +47,7 @@ export const GESTURE = {
 
 // Stroke settings
 export const STROKE = {
-  WIDTH: 10,
+  WIDTH: 12,
   MIN_POINT_DISTANCE: 8     // higher = smoother lines, less jitter
 };
 
@@ -98,3 +98,16 @@ export const BACKGROUND = {
   COLOR_START: '#475569',  // slate
   COLOR_END: '#a78bfa'     // lavender
 };
+
+// Welding effect settings for molten/spark trail during drawing
+export const WELDING = {
+  GLOW_COLORS: ['#fff59d', '#ff8c00', '#ffffff'], // soft yellow -> orange -> hot white
+  GLOW_BLURS: [20, 12, 0],
+  GLOW_WIDTH_MULTIPLIERS: [3.5, 2.0, 1.0],
+  SPARK_DENSITY: 0.12, // fraction of path segments with sparks
+  SPARK_MIN_SIZE: 1.5,
+  SPARK_MAX_SIZE: 4,
+  SPARK_BRIGHTNESS: 1.2,
+  TIP_SPARK_MULTIPLIER: 1.8 // larger spark at drawing tip
+};
+
