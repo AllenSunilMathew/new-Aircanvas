@@ -1,0 +1,32 @@
+---
+---
+
+@import "minima";
+
+body {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  color: #1f2937;
+}
+
+.wrapper {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+.site-header {
+  background: #0f172a;
+  color: white;
+}
+
+.site-title,
+.site-nav a {
+  color: white;
+  text-decoration: none;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1rem;
+}

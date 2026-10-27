@@ -1,0 +1,14 @@
+title: Aircanvas
+email: ""
+description: >-
+  Aircanvas is a gaming and creative web project
+baseurl: "/new-Aircanvas"
+url: "https://AllenSunilMathew.github.io"
+theme: minima
+markdown: kramdown
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+header_pages:
+  - index.md
